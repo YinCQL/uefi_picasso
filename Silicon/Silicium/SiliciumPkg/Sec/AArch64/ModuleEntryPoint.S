@@ -13,6 +13,12 @@
 .set CTRL_SPAN_BIT, BIT23
 
 ASM_FUNC (_ModuleEntryPoint)
+  // Keep x0 for the platform. It is the physical address of the device tree a
+  // Linux-style boot loader hands over; a DXE driver publishes the initrd it
+  // describes as a block device. The slot lives in this section, which is RAM.
+  adr   x1, ASM_PFX (gSecEntryArg0)
+  str   x0, [x1]
+
   // Do Platform Specific Initialization
   bl    ASM_PFX (PlatformAssemblyInitialize)
 
@@ -61,3 +67,8 @@ ASM_PFX (MainEntryPoint):
 
   // Do Infinite Spin
   b     .
+  // First argument of the previous stage, written once at entry
+  .align 3
+  .global ASM_PFX (gSecEntryArg0)
+ASM_PFX (gSecEntryArg0):
+  .quad 0

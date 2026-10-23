@@ -1,0 +1,74 @@
+name: Build UniXNU UEFI for picasso
+
+# Builds the picasso Mu-Silicium firmware through the UniXNU build driver, which links
+# in the UniXNU menu app (UniXNUPkg) and the DarwinBoot loader so the FD can boot UniXNU.
+# Runs on the UniXNU branch; stock build_picasso.yml auto-triggers are disabled.
+
+on:
+  workflow_dispatch:
+
+env:
+  CI_BUILD: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - name: Checkout Mu-Silicium (picasso UEFI)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ github.token }}
+
+      - name: Checkout UniXNU
+        uses: actions/checkout@v4
+        with:
+          repository: UniXNU/UniXNU
+          path: UniXNU
+          submodules: recursive
+
+      - name: Checkout UniXNU-picasso device repo
+        uses: actions/checkout@v4
+        with:
+          repository: YinCQL/UniXNU-picasso
+          path: device
+          token: ${{ github.token }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install host tools
+        run: |
+          # Reuse the Mu-Silicium dependency script (uuid-dev, nasm, mono-devel,
+          # build-essential, gcc-aarch64-linux-gnu, lld, ...) then add mtools/dtc
+          # which the Mu-Silicium stock build does not need but unixnu bootimg uses.
+          sudo apt-get update
+          bash "$GITHUB_WORKSPACE/setup_env.sh" -p apt
+          sudo apt-get install -y mtools device-tree-compiler
+
+      - name: Select device and build UniXNU firmware
+        run: |
+          cd UniXNU
+          python3 ./unixnu defconfig picasso_defconfig -D "$GITHUB_WORKSPACE/device"
+          python3 ./unixnu build firmware --uefi "$GITHUB_WORKSPACE"
+
+      - name: Pack boot image (BootShim + FD + DTB)
+        run: |
+          cd UniXNU
+          # bootimg compiles BootShim, appends the FD, gzips, adds the DTB and builds
+          # the Android boot image, so the artifact is directly flashable via fastboot.
+          python3 ./unixnu bootimg --uefi "$GITHUB_WORKSPACE" \
+            --fd "$GITHUB_WORKSPACE/Build/picassoPkg/DEBUG_CLANGPDB/FV/SILICIUM_UEFI.fd" \
+            --dtb "$GITHUB_WORKSPACE/Resources/DTBs/picasso.dtb" \
+            --ramdisk none \
+            -o "$GITHUB_WORKSPACE/Mu-picasso-unixnu-0.img"
+
+      - name: Upload UniXNU boot image
+        uses: actions/upload-artifact@v4
+        with:
+          name: Mu-picasso-unixnu
+          path: Mu-picasso-unixnu-0.img
+          compression-level: 9
+          if-no-files-found: error

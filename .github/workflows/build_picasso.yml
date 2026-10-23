@@ -1,0 +1,49 @@
+name: Build UEFI for picasso
+# NOTE: push/pull_request triggers temporarily disabled while the UniXNU firmware
+# workflow (build_picasso_unixnu.yml) is being brought up. Re-enable after.
+on:
+  workflow_dispatch:
+  # push:
+  #   branches: ["main"]
+  #   paths:
+  #     - 'Binaries'
+  #     - 'Platforms/Xiaomi/picassoPkg/**'
+  #     - 'Resources/Configs/picasso.toml'
+  #     - 'Resources/DTBs/picasso.dtb'
+  #     - 'Silicon/Qualcomm/LitoPkg/**'
+  #     - 'Silicium-ACPI'
+  # pull_request:
+  #   branches: ["main"]
+  #   paths:
+  #     - 'Binaries'
+  #     - 'Platforms/Xiaomi/picassoPkg/**'
+  #     - 'Resources/Configs/picasso.toml'
+  #     - 'Resources/DTBs/picasso.dtb'
+  #     - 'Silicon/Qualcomm/LitoPkg/**'
+  #     - 'Silicium-ACPI'
+
+env:
+  CI_BUILD: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ github.token }}
+
+      - name: Install dependencies
+        run: bash ./setup_env.sh -p apt
+
+      - name: Build UEFI for picasso
+        run: python3 build_uefi.py -d picasso -r DEBUG
+
+      - name: Upload UEFI image
+        uses: actions/upload-artifact@v4
+        with:
+          name: Mu-picasso
+          path: ./Mu-picasso-0.img
+          compression-level: 9
+          if-no-files-found: error

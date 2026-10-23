@@ -1,0 +1,14 @@
+##
+#  Copyright (c) 2018, Bingxing Wang. All rights reserved.
+#
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+##
+
+[Defines]
+  DEC_SPECIFICATION = 0x00010005
+  PACKAGE_NAME      = picassoPkg
+  PACKAGE_GUID      = 8E4A0A93-1A4E-4F3C-B6B1-2E7C9A0E5B01
+  PACKAGE_VERSION   = 0.1
+
+[Includes]
+  Include

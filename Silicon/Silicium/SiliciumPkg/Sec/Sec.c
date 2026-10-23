@@ -18,6 +18,9 @@
 
 #include "Sec.h"
 
+// Written by the entry assembly: the previous stage's x0 (device tree address).
+extern UINT64  gSecEntryArg0;
+
 #ifndef MDEPKG_NDEBUG
 STATIC
 VOID
@@ -128,6 +131,13 @@ SecMain (VOID)
   Status = PlatformPeim ();
   if (EFI_ERROR (Status)) {
     return;
+  }
+  // Pass on what the previous stage handed over in x0 (a DT address for a
+  // Linux-style boot loader) so a DXE driver can publish its initrd.
+  {
+    UINT64  EntryArg = gSecEntryArg0;
+
+    BuildGuidDataHob (&gSiliciumEntryArgHobGuid, &EntryArg, sizeof (EntryArg));
   }
 
   // Run Library Cconstructors

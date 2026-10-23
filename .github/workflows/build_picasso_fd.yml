@@ -1,0 +1,67 @@
+name: Build and upload picasso FD
+
+# Builds the picasso Mu-Silicium firmware and uploads only the raw firmware
+# volume (.fd). The device repo (UniXNU-picasso) composes the boot image with
+# its own kernel payload, so this workflow stops at the FD.
+
+on:
+  workflow_dispatch:
+
+env:
+  CI_BUILD: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - name: Checkout Mu-Silicium (picasso UEFI)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ github.token }}
+
+      - name: Checkout UniXNU
+        uses: actions/checkout@v4
+        with:
+          repository: UniXNU/UniXNU
+          path: UniXNU
+          submodules: recursive
+
+      - name: Checkout UniXNU-picasso device repo
+        uses: actions/checkout@v4
+        with:
+          repository: YinCQL/UniXNU-picasso
+          path: device
+          token: ${{ github.token }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install host tools
+        run: |
+          sudo apt-get update
+          bash "$GITHUB_WORKSPACE/setup_env.sh" -p apt
+          sudo apt-get install -y mtools device-tree-compiler
+
+      - name: Select device, fetch sources, and build UniXNU firmware
+        run: |
+          cd UniXNU
+          python3 ./unixnu defconfig picasso_defconfig -D "$GITHUB_WORKSPACE/device"
+          # fetch initialises the drivers/DarwinBoot submodule (and other modules) so
+          # DarwinBootPkg / UniXNUPkg resolve when the firmware is compiled.
+          python3 ./unixnu fetch
+          # picasso/AcpiTables.inf lives in the Silicium-ACPI submodule; make sure it
+          # is present, otherwise the FvMain section aborts and UniXNU/DarwinBoot are
+          # silently dropped from the firmware volume.
+          git -C "$GITHUB_WORKSPACE" submodule update --init Silicium-ACPI
+          python3 ./unixnu build firmware --uefi "$GITHUB_WORKSPACE"
+
+      - name: Upload firmware volume (.fd)
+        uses: actions/upload-artifact@v4
+        with:
+          name: picasso-uefi-fd
+          path: Build/picassoPkg/DEBUG_CLANGPDB/FV/SILICIUM_UEFI.fd
+          compression-level: 0
+          if-no-files-found: error
